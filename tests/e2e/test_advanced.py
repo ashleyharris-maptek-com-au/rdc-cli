@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 import pytest
-from e2e_helpers import HELLO_TRIANGLE, rdc, rdc_fail, rdc_ok
+from e2e_helpers import CaptureMetadata, rdc, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 
@@ -57,11 +57,13 @@ class TestShaderEncodings:
 class TestEventsQuiet:
     """11.4: rdc events -q line count."""
 
-    def test_quiet_mode_six_lines(self, vkcube_session: str) -> None:
-        """``rdc events -q`` outputs exactly 6 EID lines."""
+    def test_quiet_mode_line_count(
+        self, vkcube_session: str, capture_meta: CaptureMetadata
+    ) -> None:
+        """``rdc events -q`` outputs expected number of EID lines."""
         out = rdc_ok("events", "-q", session=vkcube_session)
         lines = [ln for ln in out.strip().splitlines() if ln.strip()]
-        assert len(lines) == 6
+        assert len(lines) == capture_meta.total_events
 
 
 # ---------------------------------------------------------------------------
@@ -70,17 +72,17 @@ class TestEventsQuiet:
 
 
 class TestHelloTriangleSession:
-    """12.2: Open hello_triangle.rdc in its own session."""
+    """12.2: Open a capture in its own session."""
 
-    def test_open_status_close(self) -> None:
-        """Open hello_triangle, verify status, then close."""
+    def test_open_status_close(self, captured_rdc: Path) -> None:
+        """Open capture, verify status, then close."""
         name = f"e2e_ht_{uuid.uuid4().hex[:8]}"
         try:
-            r = rdc("open", str(HELLO_TRIANGLE), session=name)
+            r = rdc("open", str(captured_rdc), session=name)
             assert r.returncode == 0, f"open failed:\n{r.stderr}"
 
             status = rdc_ok("status", session=name)
-            assert "hello_triangle" in status.lower()
+            assert captured_rdc.stem.lower() in status.lower()
 
             close_out = rdc_ok("close", session=name)
             assert "closed" in close_out.lower()
@@ -117,5 +119,4 @@ class TestOitDepthPeeling:
         """``rdc passes --deps`` outputs a DAG with dependency edges."""
         out = rdc_ok("passes", "--deps", session=oit_session)
         lines = [ln for ln in out.strip().splitlines() if ln.strip()]
-        # Should have header + at least one edge row
         assert len(lines) >= 2
